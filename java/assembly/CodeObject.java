@@ -20,6 +20,9 @@ public class CodeObject {
 	Scope.Type type; //type of value stored in temp if rval, type of value in address if lval
 	boolean lval; //true if lvalue, false if rvalue
 	SymbolTableEntry ste; //null if there is no variable, non-null if there is a variable
+
+	String condLeft;
+	String condRight;
 	
 	public CodeObject() {
 		this(null);

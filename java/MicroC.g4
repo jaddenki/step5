@@ -45,7 +45,7 @@ decls : var_decl decls
 	 | /* empty */ ;
 
 var_decls : var_decl var_decls 
-          | /* emoty */ ;
+          | /* empty */ ;
 
 /* Identifiers and types */		  
 ident : IDENTIFIER ;
@@ -113,8 +113,8 @@ statements returns [StatementListNode node] : statement s=statements {$node = ne
             | /* empty */ {$node = new StatementListNode();};
 			
 statement returns [StatementNode node] : base_stmt ';' {$node = $base_stmt.node;}
-		  /* | if_stmt FILL IN FROM STEP 1 */ /* FILL IN ACTIONS FROM STEP 3 */
-		  | while_stmt; /* FILL IN ACTIONS FROM STEP 3 */
+		  | if_stmt {$node = $if_stmt.node;}
+		  | while_stmt {$node = $while_stmt.node;};
 		  
 base_stmt returns [StatementNode node] : assign_stmt {$node = $assign_stmt.node;}
           | read_stmt {$node = $read_stmt.node;}
@@ -131,13 +131,13 @@ assign_stmt returns [AssignNode node] : ident '=' expr {$node = new AssignNode(n
 
 /* if_stmt rules go here */
 
-/*  
-if_stmt : FILL IN RULES FROM STEP 1
+if_stmt returns [IfStatementNode node]: 'if' '(' cond ')' '{' thenBlock=statements '}' else_stmt
+    {$node = new IfStatementNode($cond.node, $thenBlock.node, $else_stmt.node);};
 
-FILL IN ACTIONS FROM STEP 3
-*/
+else_stmt returns [StatementListNode node]:
+    'else' '{' statements '}' {$node = $statements.node;} | {$node = null;} ;
 
-while_stmt returns [WhileNode node] : 'while' '(' cond ')' '{' statements '}'; /* FILL IN FROM STEP 3 */
+while_stmt returns [WhileNode node] : 'while' '(' cond ')' '{' statements '}' {$node = new WhileNode($cond.node, $statements.node);};
 	 
 /* Expressions */
 
@@ -148,7 +148,7 @@ primary returns [ExpressionNode node] : ident {$node = new VarNode($ident.text);
         | il = INT_LITERAL {$node = new IntLitNode($il.text);}
         | fl = FLOAT_LITERAL {$node = new FloatLitNode($fl.text);};
 
-unaryminus_expr returns [ExpressionNode node] : '-' expr {}; /* FILL IN FROM STEP 2 */
+unaryminus_expr returns [ExpressionNode node] : '-' expr {$node = new UnaryOpNode($expr.node, "-");};
 		 
 /* Call expressions */
 call_expr returns [CallNode node] : ident '(' arg_list ')' {$node = new CallNode($ident.text, $arg_list.args);};
@@ -161,13 +161,13 @@ args_rest returns [List<ExpressionNode> args] : ',' expr args_rest {$args = new 
 
 /* This is left recursive, but ANTLR will clean this up */ 
 expr returns [ExpressionNode node] : term {$node = $term.node;}
-     | e1 = expr addop term {}; /* FILL IN FROM STEP 2 */
+     | e1 = expr addop term {$node = new BinaryOpNode($e1.node, $term.node, $addop.text);};
 	 
 /* This is left recursive, but ANTLR will clean this up */
 term returns [ExpressionNode node] : primary {$node = $primary.node;}
-     | t1 = term mulop primary {}; /* FILL IN FROM STEP 2 */
+     | t1 = term mulop primary {$node = new BinaryOpNode($t1.node, $primary.node, $mulop.text);};
 	   	   
-cond returns [CondNode node] : e1=expr cmpop e2=expr; /* FILL IN FROM STEP 3 */
+cond returns [CondNode node] : e1=expr cmpop e2=expr {$node = new CondNode($e1.node, $e2.node, $cmpop.text);};
 
 cmpop : '<' | '<=' | '>=' | '==' | '!=' | '>' ;
 

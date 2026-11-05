@@ -33,6 +33,47 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 		floatRegCount = 0;
 	}
 
+	// making a helper that branches when false
+	private void addFalseBranch(CodeObject result, CondNode node, CodeObject cond, String label) {
+		String left = cond.condLeft;
+		String right = cond.condRight;
+
+		if (cond.type == Scope.Type.INT) {
+			Instruction branch;
+			switch (node.getReversedOp()) {
+				case LT: branch = new Blt(left, right, label); break;
+				case LE: branch = new Ble(left, right, label); break;
+				case GT: branch = new Bgt(left, right, label); break;
+				case GE: branch = new Bge(left, right, label); break;
+				case EQ: branch = new Beq(left, right, label); break;
+				case NE: branch = new Bne(left, right, label); break;
+				default: throw new Error("unknown comparison!");
+			}
+			result.code.add(branch);
+		} else if (cond.type == Scope.Type.FLOAT) {
+			String comparisonResult = generateTemp(Scope.Type.INT);
+			Instruction comparison;
+			switch (node.getOp()) {
+				case EQ:
+				case NE: comparison = new Feq(left, right, comparisonResult); break;
+				case LT: comparison = new Flt(left, right, comparisonResult); break;
+				case LE: comparison = new Fle(left, right, comparisonResult); break;
+				case GT: comparison = new Flt(right, left, comparisonResult); break;
+				case GE: comparison = new Fle(right, left, comparisonResult); break;
+				default: throw new Error("unknown comparison");
+			}
+			result.code.add(comparison);
+
+			if (node.getOp() == CondNode.OpType.NE) {
+				result.code.add(new Bne(comparisonResult, "x0", label));
+			} else {
+				result.code.add(new Beq(comparisonResult, "x0", label));
+			}
+		} else {
+			throw new Error("unsupported comparison type: " + cond.type);
+		}
+	}
+
 	public int getIntRegCount() {
 		return intRegCount;
 	}
@@ -128,10 +169,27 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 	protected CodeObject postprocess(BinaryOpNode node, CodeObject left, CodeObject right) {
 
 		CodeObject co = new CodeObject();
-		
-		/* FILL IN FROM STEP 2 */
 
-		/* MODIFY THIS TO GENERATE 3AC INSTEAD */
+		co.code.addAll(left.code);
+		co.code.addAll(right.code);
+		String dest = generateTemp(node.getType());
+		Instruction op;
+		boolean isInt = node.getType() == Scope.Type.INT;
+		switch (node.getOp()) {
+			case ADD: op = isInt ? new Add(left.temp, right.temp, dest) : new FAdd(left.temp, right.temp, dest);
+				break;
+			case SUB: op = isInt ? new Sub(left.temp, right.temp, dest) : new FSub(left.temp, right.temp, dest);
+				break;
+			case MUL: op = isInt ? new Mul(left.temp, right.temp, dest) : new FMul(left.temp, right.temp, dest);
+				break;
+			case DIV: op = isInt ? new Div(left.temp, right.temp, dest) : new FDiv(left.temp, right.temp, dest);
+				break;
+			default: throw new Error("unknown binary op " + node.getOp());
+		}
+		co.code.add(op);
+		co.temp = dest;
+		co.lval = false;
+		co.type = node.getType();
 
 		return co;
 	}
@@ -152,9 +210,20 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 		
 		CodeObject co = new CodeObject();
 
-		/* FILL IN FROM STEP 2 */
-
-		/* MODIFY THIS TO GENERATE 3AC INSTEAD */
+		co.code.addAll(expr.code);
+		String dest = generateTemp(node.getType());
+		Instruction neg;
+		switch (node.getType()) {
+			case INT: neg = new Neg(expr.temp, dest);
+				break;
+			case FLOAT: neg = new FNeg(expr.temp, dest);
+				break;
+			default: throw new Error("can't negate type " + node.getType());
+		}
+		co.code.add(neg);
+		co.temp = dest;
+		co.lval = false;
+		co.type = node.getType();
 
 		return co;
 	}
@@ -180,10 +249,19 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 		
 		CodeObject co = new CodeObject();
 
-		/* FILL IN FROM STEP 2 */
+		assert(left.isVar());
+		co.code.addAll(right.code);
+		switch (node.getType()) {
+			case INT: co.code.add(new Mv(right.temp, left.temp));
+				break;
+			case FLOAT: co.code.add(new FMv(right.temp, left.temp));
+				break;
+			default: throw new Error("can't assign type " + node.getType());
+		}
+		co.lval = false;
+		co.temp = null;
+		co.type = null;
 
-		/* MODIFY THIS TO GENERATE 3AC INSTEAD */
-		
 		return co;
 	}
 
@@ -331,9 +409,11 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 	protected CodeObject postprocess(CondNode node, CodeObject left, CodeObject right) {
 		CodeObject co = new CodeObject();
 
-		/* FILL IN FROM STEP 3*/
-
-		/* MODIFY THIS TO GENERATE 3AC */
+		co.code.addAll(left.code);
+		co.code.addAll(right.code);
+		co.condLeft = left.temp;
+		co.condRight = right.temp;
+		co.type = left.type;
 
 		return co;
 	}
@@ -367,9 +447,22 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 		//Step 0:
 		CodeObject co = new CodeObject();
 
-		/* FILL IN FROM STEP 3*/
+		String out = generateOutLabel();
 
-		/* MODIFY THIS TO GENERATE 3AC */
+		co.code.addAll(cond.code);
+
+		if (elist == null) {
+			addFalseBranch(co, node.getCondExpr(), cond, out);
+			co.code.addAll(tlist.code);
+		} else {
+			String otherwise = generateElseLabel();
+			addFalseBranch(co, node.getCondExpr(), cond, otherwise);
+			co.code.addAll(tlist.code);
+			co.code.add(new J(out));
+			co.code.add(new Label(otherwise));
+			co.code.addAll(elist.code);
+		}
+		co.code.add(new Label(out));
 
 		return co;
 	}
@@ -401,9 +494,15 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 		//Step 0:
 		CodeObject co = new CodeObject();
 
-		/* FILL IN FROM STEP 3*/
+		String loop = generateLoopLabel();
+		String out = generateOutLabel();
 
-		/* MODIFY THIS TO GENERATE 3AC */
+		co.code.add(new Label(loop));
+		co.code.addAll(cond.code);
+		addFalseBranch(co, node.getCond(), cond, out);
+		co.code.addAll(slist.code);
+		co.code.add(new J(loop));
+		co.code.add(new Label(out));
 
 		return co;
 	}
@@ -425,9 +524,17 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 	protected CodeObject postprocess(ReturnNode node, CodeObject retExpr) {
 		CodeObject co = new CodeObject();
 
-		/* FILL IN FROM STEP 4*/
+		co.code.addAll(retExpr.code);
 
-		/* MODIFY THIS TO GENERATE 3AC */
+		// $l8 is the return slot at 8(fp)
+		switch (node.getFuncSymbol().getReturnType()) {
+			case INT: co.code.add(new Mv(retExpr.temp, "$l8"));
+				break;
+			case FLOAT: co.code.add(new FMv(retExpr.temp, "$l8"));
+				break;
+			default: throw new Error("bad return type");
+		}
+		co.code.add(new J(generateFunctionOutLabel()));
 
 		return co;
 	}
@@ -471,7 +578,20 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 	protected CodeObject postprocess(FunctionNode node, CodeObject body) {
 		CodeObject co = new CodeObject();
 
-		/* FILL IN FROM STEP 4*/
+		co.code.add(new Label(generateFunctionLabel()));
+		co.code.add(new Sw("fp", "sp", "0"));
+		co.code.add(new Mv("sp", "fp"));
+		co.code.add(new Addi("sp", "-4", "sp"));
+		// TODO: use local count after spilling temps
+		co.code.add(new Addi("sp", String.valueOf(-4 * node.getScope().getNumLocals()), "sp"));
+		// TODO: push the physical registers the allocator used (pushRegister)
+		// TODO: replace with register-allocated body.code
+		co.code.addAll(body.code);
+		co.code.add(new Label(generateFunctionOutLabel()));
+		// TODO: pop saved registers in reverse order (popRegister)
+		co.code.add(new Mv("fp", "sp"));
+		co.code.add(new Lw("fp", "fp", "0"));
+		co.code.add(new Ret());
 
 		/** ADD REGISTER ALLOCATION HERE
 		 * 
@@ -561,12 +681,24 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 		//STEP 0
 		CodeObject co = new CodeObject();
 
-		/* FILL IN FROM STEP 4*/
+		for (CodeObject arg : args) {
+			co.code.addAll(arg.code);
+			co.code.add(arg.type == Scope.Type.FLOAT ? new PushFloat(arg.temp) : new PushInt(arg.temp));
+		}
+		co.code.add(new Addi("sp", "-4", "sp"));
+		co.code.add(new PushInt("ra"));
+		co.code.add(new Jr(generateFunctionLabel(node.getFuncName())));
+		co.code.add(new PopInt("ra"));
+		String ret = generateTemp(node.getType());
+		co.code.add(node.getType() == Scope.Type.FLOAT ? new PopFloat(ret) : new PopInt(ret));
+		co.code.add(new Addi("sp", String.valueOf(4 * args.size()), "sp"));
 
-		/* MODIFY THIS TO GENERATE 3AC */
+		co.temp = ret;
+		co.lval = false;
+		co.type = node.getType();
 
 		return co;
-	}	
+	}
 	
 	/**
 	 * Generate a fresh temporary
@@ -658,6 +790,16 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 		il.add(compAddr); //add instruction to code object
 
 		return il;
+	}
+
+	private void pushRegister(InstructionList il, String reg, Scope.Type t) {
+		il.add(t == Scope.Type.FLOAT ? new Fsw(reg, "sp", "0") : new Sw(reg, "sp", "0"));
+		il.add(new Addi("sp", "-4", "sp"));
+	}
+
+	private void popRegister(InstructionList il, String reg, Scope.Type t) {
+		il.add(new Addi("sp", "4", "sp"));
+		il.add(t == Scope.Type.FLOAT ? new Flw(reg, "sp", "0") : new Lw(reg, "sp", "0"));
 	}
 
 }
