@@ -15,22 +15,27 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 	int floatRegCount;
 	static final public String intTempPrefix = "$t";
 	static final public String floatTempPrefix = "$f";
-	
+
 	int loopLabel;
 	int elseLabel;
 	int outLabel;
 
-	static final public int numIntRegisters = 32;
-	static final public int numFloatRegisters = 32;
+	// static final public int numIntRegisters = 32;
+	// static final public int numFloatRegisters = 32;
+
+	int numIntRegisters;
+	int numFloatRegisters;
 
 	String currFunc;
-	
-	public CodeGenerator() {
+
+	public CodeGenerator(numRegs) {
 		loopLabel = 0;
 		elseLabel = 0;
 		outLabel = 0;
-		intRegCount = 0;		
+		intRegCount = 0;
 		floatRegCount = 0;
+		numIntRegisters = numRegs;
+		numFloatRegisters = numRegs;
 	}
 
 	// making a helper that branches when false
@@ -81,19 +86,19 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 	public int getFloatRegCount() {
 		return floatRegCount;
 	}
-	
+
 	/**
 	 * Generate code for Variables
-	 * 
+	 *
 	 * Create a code object that just holds a variable
-	 * 
+	 *
 	 * NOTE THAT THIS HAS CHANGED TO GENERATE 3AC INSTEAD
 	 */
 	@Override
 	protected CodeObject postprocess(VarNode node) {
-		
+
 		Scope.SymbolTableEntry sym = node.getSymbol();
-		
+
 		CodeObject co = new CodeObject(sym);
 		co.lval = true;
 		co.type = node.getType();
@@ -108,13 +113,13 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 	}
 
 	/** Generate code for IntLiterals
-	 * 
+	 *
 	 * NOTE THAT THIS HAS CHANGED TO GENERATE 3AC INSTEAD
 	 */
 	@Override
 	protected CodeObject postprocess(IntLitNode node) {
 		CodeObject co = new CodeObject();
-		
+
 		//Load an immediate into a register
 		//The li and la instructions are the same, but it's helpful to distinguish
 		//for readability purposes.
@@ -130,13 +135,13 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 	}
 
 	/** Generate code for FloatLiteras
-	 * 
+	 *
 	 * NOTE THAT THIS HAS CHANGED TO GENERATE 3AC INSTEAD
 	 */
 	@Override
 	protected CodeObject postprocess(FloatLitNode node) {
 		CodeObject co = new CodeObject();
-		
+
 		//Load an immediate into a regisster
 		//The li and la instructions are the same, but it's helpful to distinguish
 		//for readability purposes.
@@ -153,17 +158,17 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 
 	/**
 	 * Generate code for binary operations.
-	 * 
+	 *
 	 * Step 0: create new code object
 	 * Step 1: add code from left child
 	 * Step 1a: if left child is an lval, add a load to get the data
 	 * Step 2: add code from right child
 	 * Step 2a: if right child is an lval, add a load to get the data
 	 * Step 3: generate binary operation using temps from left and right
-	 * 
+	 *
 	 * Don't forget to update the temp and lval fields of the code object!
 	 * 	   Hint: where is the result stored? Is this data or an address?
-	 * 
+	 *
 	 */
 	@Override
 	protected CodeObject postprocess(BinaryOpNode node, CodeObject left, CodeObject right) {
@@ -196,18 +201,18 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 
 	/**
 	 * Generate code for unary operations.
-	 * 
+	 *
 	 * Step 0: create new code object
 	 * Step 1: add code from child expression
 	 * Step 2: generate instruction to perform unary operation
-	 * 
+	 *
 	 * Don't forget to update the temp and lval fields of the code object!
 	 * 	   Hint: where is the result stored? Is this data or an address?
-	 * 
+	 *
 	 */
 	@Override
 	protected CodeObject postprocess(UnaryOpNode node, CodeObject expr) {
-		
+
 		CodeObject co = new CodeObject();
 
 		co.code.addAll(expr.code);
@@ -230,23 +235,23 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 
 	/**
 	 * Generate code for assignment statements
-	 * 
+	 *
 	 * Step 0: create new code object
 	 * Step 1: if LHS is a variable, generate a load instruction to get the address into a register
 	 * Step 1a: add code from LHS of assignment (make sure it results in an lval!)
 	 * Step 2: add code from RHS of assignment
 	 * Step 2a: if right child is an lval, add a load to get the data
 	 * Step 3: generate store
-	 * 
+	 *
 	 * Hint: it is going to be easiest to just generate a store with a 0 immediate
 	 * offset, and the complete store address in a register:
-	 * 
+	 *
 	 * sw rhs 0(lhs)
 	 */
 	@Override
 	protected CodeObject postprocess(AssignNode node, CodeObject left,
 			CodeObject right) {
-		
+
 		CodeObject co = new CodeObject();
 
 		assert(left.isVar());
@@ -279,20 +284,20 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 		co.type = null; //set to null to trigger errors
 		return co;
 	}
-	
+
 	/**
 	 * Generate code for read
-	 * 
+	 *
 	 * Step 0: create new code object
 	 * Step 1: add code from VarNode (make sure it's an lval)
 	 * Step 2: generate GetI instruction, storing into temp
 	 * Step 3: generate store, to store temp in variable
-	 * 
+	 *
 	 * NOTE THAT THIS HAS CHANGED TO GENERATE 3AC INSTEAD
 	 */
 	@Override
 	protected CodeObject postprocess(ReadNode node, CodeObject var) {
-		
+
 		//Step 0
 		CodeObject co = new CodeObject();
 
@@ -301,7 +306,7 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 
 		InstructionList il = new InstructionList();
 		switch(node.getType()) {
-			case INT: 
+			case INT:
 				//Code to generate if INT:
 				//geti var.tmp
 				Instruction geti = new GetI(var.temp);
@@ -316,7 +321,7 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 			default:
 				throw new Error("Shouldn't read into other variable");
 		}
-		
+
 		co.code.addAll(il);
 
 		co.lval = false; //doesn't matter
@@ -328,18 +333,18 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 
 	/**
 	 * Generate code for print
-	 * 
+	 *
 	 * Step 0: create new code object
-	 * 
+	 *
 	 * If printing a string:
 	 * Step 1: add code from expression to be printed (make sure it's an lval)
 	 * Step 2: generate a PutS instruction printing the result of the expression
-	 * 
+	 *
 	 * If printing an integer:
 	 * Step 1: add code from the expression to be printed
 	 * Step 1a: if it's an lval, generate a load to get the data
 	 * Step 2: Generate PutI that prints the temporary holding the expression
-	 * 
+	 *
 	 * NOTE THAT THIS HAS CHANGED TO GENERATE 3AC INSTEAD
 	 */
 	@Override
@@ -356,7 +361,7 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 			//Step 2:
 			Instruction write = new PutS(expr.temp);
 			co.code.add(write);
-		} else {			
+		} else {
 			//Step 1:
 			co.code.addAll(expr.code);
 
@@ -382,26 +387,26 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 
 	/**
 	 * FILL IN FROM STEP 3
-	 * 
+	 *
 	 * Generating an instruction sequence for a conditional expression
-	 * 
+	 *
 	 * Implement this however you like. One suggestion:
 	 *
 	 * Create the code for the left and right side of the conditional, but defer
 	 * generating the branch until you process IfStatementNode or WhileNode (since you
 	 * do not know the labels yet). Modify CodeObject so you can save the necessary
 	 * information to generate the branch instruction in IfStatementNode or WhileNode
-	 * 
+	 *
 	 * Alternate idea 1:
-	 * 
+	 *
 	 * Don't do anything as part of CodeGenerator. Create a new visitor class
 	 * that you invoke *within* your processing of IfStatementNode or WhileNode
-	 * 
+	 *
 	 * Alternate idea 2:
-	 * 
+	 *
 	 * Create the branch instruction in this function, then tweak it as necessary in
 	 * IfStatementNode or WhileNode
-	 * 
+	 *
 	 * Hint: you may need to preserve extra information in the returned CodeObject to
 	 * make sure you know the type of branch code to generate (int vs float)
 	 */
@@ -420,16 +425,16 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 
 	/**
 	 * FILL IN FROM STEP 3
-	 * 
+	 *
 	 * Step 0: Create code object
-	 * 
+	 *
 	 * Step 1: generate labels
-	 * 
+	 *
 	 * Step 2: add code from conditional expression
-	 * 
+	 *
 	 * Step 3: create branch statement (if not created as part of step 2)
 	 * 			don't forget to generate correct branch based on type
-	 * 
+	 *
 	 * Step 4: generate code
 	 * 		<cond code>
 	 *		<flipped branch> elseLabel
@@ -440,7 +445,7 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 	 *		outLabel:
 	 *
 	 * Step 5 insert code into code object in appropriate order.
-	 * 
+	 *
 	 */
 	@Override
 	protected CodeObject postprocess(IfStatementNode node, CodeObject cond, CodeObject tlist, CodeObject elist) {
@@ -469,16 +474,16 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 
 		/**
 	 * FILL IN FROM STEP 3
-	 * 
+	 *
 	 * Step 0: Create code object
-	 * 
+	 *
 	 * Step 1: generate labels
-	 * 
+	 *
 	 * Step 2: add code from conditional expression
-	 * 
+	 *
 	 * Step 3: create branch statement (if not created as part of step 2)
 	 * 			don't forget to generate correct branch based on type
-	 * 
+	 *
 	 * Step 4: generate code
 	 * 		loopLabel:
 	 *		<cond code>
@@ -509,15 +514,15 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 
 	/**
 	 * FILL IN FOR STEP 4
-	 * 
+	 *
 	 * Generating code for returns
-	 * 
+	 *
 	 * Step 0: Generate new code object
-	 * 
+	 *
 	 * Step 1: Add retExpr code to code object (rvalify if necessary)
-	 * 
+	 *
 	 * Step 2: Store result of retExpr in appropriate place on stack (fp + 8)
-	 * 
+	 *
 	 * Step 3: Jump to out label (use @link{generateFunctionOutLabel()})
 	 */
 	@Override
@@ -551,22 +556,22 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 
 	/**
 	 * FILL IN FOR STEP 4
-	 * 
+	 *
 	 * Generate code for functions
-	 * 
+	 *
 	 * Step 1: add the label for the beginning of the function
-	 * 
+	 *
 	 * Step 2: manage frame  pointer
 	 * 			a. Save old frame pointer
 	 * 			b. Move frame pointer to point to base of activation record (current sp)
 	 * 			c. Update stack pointer
-	 * 
+	 *
 	 * Step 3: allocate new stack frame (use scope infromation from FunctionNode)
-	 * 
+	 *
 	 * Step 4: save registers on stack (Can inspect intRegCount and floatRegCount to know what to save)
-	 * 
+	 *
 	 * Step 5: add the code from the function body
-	 * 
+	 *
 	 * Step 6: add post-processing code:
 	 * 			a. Label for `return` statements inside function body to jump to
 	 * 			b. Restore registers
@@ -594,9 +599,9 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 		co.code.add(new Ret());
 
 		/** ADD REGISTER ALLOCATION HERE
-		 * 
+		 *
 		 * You may find it useful to do this in the following way:
-		 * 
+		 *
 		 * 1. Write a register allocator class that is initialized with the number of int/fp registers to use, the code from
 		 * 		`body`, and the function scope from `node` (the function scope gives you access to local/global variables)
 		 * 2. Within the register allocator class, do the following
@@ -624,13 +629,13 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 
 	/**
 	 * Generate code for the list of functions. This is the "top level" code generation function
-	 * 
+	 *
 	 * Step 1: Set fp to point to sp
-	 * 
+	 *
 	 * Step 2: Insert a JR to main
-	 * 
+	 *
 	 * Step 3: Insert a HALT
-	 * 
+	 *
 	 * Step 4: Include all the code of the functions
 	 */
 	@Override
@@ -652,32 +657,32 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 	}
 
 	/**
-	* 
+	*
 	* FILL IN FOR STEP 4
-	* 
+	*
 	* Generate code for a call expression
-	 * 
+	 *
 	 * Step 1: For each argument:
-	 * 
+	 *
 	 * 	Step 1a: insert code of argument (don't forget to rvalify!)
-	 * 
-	 * 	Step 1b: push result of argument onto stack 
-	 * 
+	 *
+	 * 	Step 1b: push result of argument onto stack
+	 *
 	 * Step 2: alloate space for return value
-	 * 
+	 *
 	 * Step 3: push current return address onto stack
-	 * 
+	 *
 	 * Step 4: jump to function
-	 * 
+	 *
 	 * Step 5: pop return address back from stack
-	 * 
+	 *
 	 * Step 6: pop return value into fresh temporary (destination of call expression)
-	 * 
+	 *
 	 * Step 7: remove arguments from stack (move sp)
 	 */
 	@Override
 	protected CodeObject postprocess(CallNode node, List<CodeObject> args) {
-		
+
 		//STEP 0
 		CodeObject co = new CodeObject();
 
@@ -699,10 +704,10 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 
 		return co;
 	}
-	
+
 	/**
 	 * Generate a fresh temporary
-	 * 
+	 *
 	 * @return new temporary register name
 	 */
 	protected String generateTemp(Scope.Type t) {
@@ -736,17 +741,17 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 	protected String generateFunctionOutLabel() {
 		return "func_ret_" + currFunc;
 	}
-	
+
 	/**
 	 * Take a code object that results in an lval, and create a new code
 	 * object that adds a load to generate the rval.
-	 * 
+	 *
 	 * @param lco The code object resulting in an address
 	 * @return A code object with all the code of <code>lco</code> followed by a load
 	 *         to generate an rval
 	 */
 	protected CodeObject rvalify(CodeObject lco) {
-		
+
 		assert (lco.lval == true);
 		CodeObject co = new CodeObject();
 
@@ -759,11 +764,11 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 
 	/**
 	 * Generate an instruction sequence that holds the address of the variable in a code object
-	 * 
+	 *
 	 * If it's a global variable, just get the address from the symbol table
-	 * 
+	 *
 	 * If it's a local variable, compute the address relative to the frame pointer (fp)
-	 * 
+	 *
 	 * @param lco The code object holding a variable
 	 * @return a list of instructions that puts the address of the variable in a register
 	 */

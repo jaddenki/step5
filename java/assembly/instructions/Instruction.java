@@ -62,14 +62,14 @@ public abstract class Instruction {
 			return this.opCodeName;
 		}
 	}
-	
+
 	String src1; //holds src operand, if needed
 	String src2; //holds src operand, if needed
 	String dest; //holds destination operand, if needed
 	String label; //holds other value (immediate, label)
 	OpCode oc; //op code
-	
-	/** 
+
+	/**
 	 * Default constructor, not used except by implementing class
 	 */
 	protected Instruction() {
@@ -81,7 +81,7 @@ public abstract class Instruction {
     public String getDest() {
         return this.dest;
 	}
-	
+
 	public enum Operand {
 		SRC1,
 		SRC2,
@@ -91,12 +91,15 @@ public abstract class Instruction {
 	public OpCode getOC() {
 		return oc;
 	}
-
-	public String getOperand(Operand o) {
+	// make instr rewritable
+	public String getOperand(Operand o, String s) {
 		switch (o) {
-			case SRC1: return src1;
-			case SRC2: return src2;
-			case DEST: return dest;
+			case SRC1: src1 = s;
+			    break;
+			case SRC2: src2 = s;
+			    break;
+			case DEST: dest = s;
+			    break;
 			default: throw new Error("Shouldn't get here");
 		}
 	}
