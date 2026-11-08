@@ -1,6 +1,7 @@
 package assembly;
 
 import java.util.List;
+import java.util.ArrayList;
 
 import ast.visitor.AbstractASTVisitor;
 
@@ -28,7 +29,7 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 
 	String currFunc;
 
-	public CodeGenerator(numRegs) {
+	public CodeGenerator(int numRegs) {
 		loopLabel = 0;
 		elseLabel = 0;
 		outLabel = 0;
@@ -582,22 +583,6 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 	@Override
 	protected CodeObject postprocess(FunctionNode node, CodeObject body) {
 		CodeObject co = new CodeObject();
-
-		co.code.add(new Label(generateFunctionLabel()));
-		co.code.add(new Sw("fp", "sp", "0"));
-		co.code.add(new Mv("sp", "fp"));
-		co.code.add(new Addi("sp", "-4", "sp"));
-		// TODO: use local count after spilling temps
-		co.code.add(new Addi("sp", String.valueOf(-4 * node.getScope().getNumLocals()), "sp"));
-		// TODO: push the physical registers the allocator used (pushRegister)
-		// TODO: replace with register-allocated body.code
-		co.code.addAll(body.code);
-		co.code.add(new Label(generateFunctionOutLabel()));
-		// TODO: pop saved registers in reverse order (popRegister)
-		co.code.add(new Mv("fp", "sp"));
-		co.code.add(new Lw("fp", "fp", "0"));
-		co.code.add(new Ret());
-
 		/** ADD REGISTER ALLOCATION HERE
 		 *
 		 * You may find it useful to do this in the following way:
@@ -622,6 +607,28 @@ public class CodeGenerator extends AbstractASTVisitor<CodeObject> {
 		 * 		b. How many total registers you used -- this affects the register save/restore code
 		 * 4. Now generate code for your function as before, but using the updated information for register save/restore and frame allocation
 		 */
+		RegisterAllocator ra = new RegisterAllocator(numIntRegisters, node.getScope());
+		InstructionList allocated = ra.allocateFunction(body.code);
+		List<String> saved = new ArrayList<>(ra.usedRegs);
+
+		co.code.add(new Label(generateFunctionLabel()));
+		co.code.add(new Sw("fp", "sp", "0"));
+		co.code.add(new Mv("sp", "fp"));
+		co.code.add(new Addi("sp", "-4", "sp"));
+		// numLocals now includes spilled temps
+		co.code.add(new Addi("sp", String.valueOf(-4 * node.getScope().getNumLocals()), "sp"));
+		for (String r : saved) {
+			pushRegister(co.code, r, r.startsWith("f") ? Scope.Type.FLOAT : Scope.Type.INT);
+		}
+		co.code.addAll(allocated);
+		co.code.add(new Label(generateFunctionOutLabel()));
+		for (int k = saved.size() - 1; k >= 0; k--) {
+			String r = saved.get(k);
+			popRegister(co.code, r, r.startsWith("f") ? Scope.Type.FLOAT : Scope.Type.INT);
+		}
+		co.code.add(new Mv("fp", "sp"));
+		co.code.add(new Lw("fp", "fp", "0"));
+		co.code.add(new Ret());
 
 
 		return co;

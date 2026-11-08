@@ -16,21 +16,21 @@ public class Compiler {
 	static public SymbolTable symbolTable = new SymbolTable();
 
 	public Compiler() {
-		
+
 	}
 
 	public static void main(String args[]) {
-		
-		
+
+
 		try {
 			MicroCLexer lexer = new MicroCLexer(CharStreams.fromFileName(args[0]));
-			
+
 			MicroCParser parser = new MicroCParser(new CommonTokenStream(lexer));
 
 			parser.setSymbolTable(symbolTable);
-			
+
 			parser.program(); //parse the program to build the ast
-			
+
 			//Print out the symbol table. Helpful for debugging
 			symbolTable.printTable();
 
@@ -40,7 +40,7 @@ public class Compiler {
 			// PrintVisitor pv = new PrintVisitor();
 			// pv.run(ast);
 
-			CodeGenerator cg = new CodeGenerator();
+			CodeGenerator cg = new CodeGenerator(Integer.parseInt(args[1]));
 			CodeObject co = cg.run(ast);
 
 			// Print out ".section .text"
@@ -56,7 +56,7 @@ public class Compiler {
 			System.out.println("File not found");
 			e.printStackTrace();
 			System.exit(1);
-		}		
+		}
 	}
 
 	private static void printStrings() {
@@ -73,5 +73,5 @@ public class Compiler {
 			}
 		}
 	}
-	
+
 }

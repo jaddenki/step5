@@ -91,8 +91,17 @@ public abstract class Instruction {
 	public OpCode getOC() {
 		return oc;
 	}
-	// make instr rewritable
-	public String getOperand(Operand o, String s) {
+
+	public String getOperand(Operand o) {
+		switch (o) {
+			case SRC1: return src1;
+			case SRC2: return src2;
+			case DEST: return dest;
+			default: throw new Error("Shouldn't get here");
+		}
+	}
+
+	public void setOperand(Operand o, String s) {
 		switch (o) {
 			case SRC1: src1 = s;
 			    break;
@@ -100,7 +109,6 @@ public abstract class Instruction {
 			    break;
 			case DEST: dest = s;
 			    break;
-			default: throw new Error("Shouldn't get here");
 		}
 	}
 
